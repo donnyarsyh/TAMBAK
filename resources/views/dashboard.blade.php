@@ -16,15 +16,15 @@
             <div class="flex-1">
                 <h1 class="text-3xl font-extrabold text-blue-900">Home</h1>
                 <p class="text-base text-gray-700 font-medium">TAMBAK (Tingkat Akurasi Monitoring Budidaya Kepiting)</p>
-                <p class="text-sm text-gray-500 italic">Sistem monitoring kualitas air menggunakan metode Fuzzy Tsukamoto</p>
+                <p class="text-sm text-gray-500 italic">Sistem monitoring kualitas air tambak kepiting bakau menggunakan metode Fuzzy Tsukamoto</p>
             </div>
             <div class="flex flex-wrap gap-2">
                 <button class="bg-white px-5 py-2.5 rounded-lg shadow-sm text-blue-600 font-bold border-b-4 border-blue-600 transition-all active:transform active:scale-95">
                     <i class="fas fa-home mr-2"></i>Home
                 </button>
-                <button class="bg-white px-5 py-2.5 rounded-lg shadow-sm text-gray-600 font-medium hover:bg-gray-50 transition-all">
+                <a href="{{ route('fuzzy.rules') }}" class="bg-white px-5 py-2.5 rounded-lg shadow-sm text-gray-600 font-medium hover:bg-gray-50 transition-all active:transform active:scale-95 flex items-center">
                     <i class="fas fa-check-square mr-2 text-blue-500"></i>Fuzzy Rules
-                </button>
+                </a>
             </div>
         </div>
 
@@ -85,6 +85,9 @@
                     <h3 class="font-black text-slate-700 uppercase tracking-widest text-sm flex items-center">
                         <i class="fas fa-history mr-2 text-blue-600"></i>Log Riwayat Terkini
                     </h3>
+                    <a href="{{ route('export.log') }}" class="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition flex items-center shadow-md shadow-green-100">
+                        <i class="fas fa-file-excel mr-2"></i> Unduh Data
+                    </a>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left">
