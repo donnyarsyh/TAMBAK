@@ -25,19 +25,66 @@ class DashboardController extends Controller
     }
 
     // Fungsi Toggle
-    public function toggleStatus()
-    {
-        $current = DB::table('app_settings')->where('key', 'monitoring_status')->first();
-        
-        if (!$current) {
-            DB::table('app_settings')->insert(['key' => 'monitoring_status', 'value' => 'start']);
+    public function toggleStatus() {
+        $setting = DB::table('app_settings')->where('key', 'monitoring_status')->first();
+
+        if (!$setting) {
+            DB::table('app_settings')->insert([
+                'key' => 'monitoring_status', 
+                'value' => 'start',
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
             $newStatus = 'start';
         } else {
-            $newStatus = ($current->value == 'start') ? 'stop' : 'start';
-            DB::table('app_settings')->where('key', 'monitoring_status')->update(['value' => $newStatus]);
+            $newStatus = ($setting->value == 'start') ? 'stop' : 'start';
+            DB::table('app_settings')->where('key', 'monitoring_status')->update([
+                'value' => $newStatus,
+                'updated_at' => now()
+            ]);
         }
         
         return response()->json(['status' => $newStatus]);
+    }
+
+    public function checkStatus() 
+    {
+        try {
+            $setting = DB::table('app_settings')->where('key', 'monitoring_status')->first();
+            if ($setting) {
+                return response($setting->value, 200)
+                    ->header('Content-Type', 'text/plain');
+            }
+
+            return response('stop', 200)->header('Content-Type', 'text/plain');
+
+        } catch (\Exception $e) {
+            return response('error', 500);
+        }
+    }
+
+    public function store(Request $request) 
+    {
+        try {
+            // Validasi data yang masuk dari ESP32
+            $validated = $request->validate([
+                'suhu' => 'required|numeric',
+                'ph' => 'required|numeric',
+                'salinitas' => 'required|numeric',
+            ]);
+            $sensor = new \App\Models\SensorData();
+            $sensor->suhu = $request->suhu;
+            $sensor->ph = $request->ph;
+            $sensor->salinitas = $request->salinitas;
+            $sensor->nilai_z = $request->nilai_z ?? 0; // Default 0 jika belum ada hitungan fuzzy
+            $sensor->kondisi_air = $request->kondisi_air ?? 'Proses'; // Default 'Proses'
+            $sensor->save();
+
+            return response()->json(['status' => 'success', 'message' => 'Data tersimpan'], 201);
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
     }
 
     // Fungsi Fetch Data untuk AJAX

@@ -36,12 +36,12 @@
                     </h3>
                     <p class="text-sm text-gray-400 font-medium">Kualitas Air Saat Ini:</p>
                     <h2 id="kondisi-air-text" class="text-7xl font-black text-green-500 my-4 tracking-tighter">{{ $latest->kondisi_air ?? '-' }}</h2>
-                    <p id="keterangan-text" class="text-gray-600 leading-relaxed mb-8 italic text-sm">
-                        Memuat data terbaru...
+                    <p id="keterangan-text" class="text-gray-600 leading-relaxed mb-8 italic text-sm text-slate-500">
+                        Menunggu data dari sensor...
                     </p>
                 </div>
-                <button class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center justify-center">
-                    <i class="fas fa-sync-alt mr-3"></i> Jalankan Fuzzyfikasi
+                <button onclick="updateDashboard()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center justify-center">
+                    <i class="fas fa-sync-alt mr-3"></i> Refresh Data
                 </button>
             </div>
 
@@ -50,7 +50,7 @@
                     <h3 class="text-gray-500 font-bold uppercase tracking-wider text-sm flex items-center">
                         <i class="fas fa-chart-area mr-2 text-blue-500"></i>Grafik Real-Time (Nilai Z)
                     </h3>
-                    <span class="text-xs font-bold bg-blue-50 text-blue-600 px-3 py-1 rounded-full animate-pulse">LIVE DATA</span>
+                    <span id="live-indicator" class="text-xs font-bold bg-gray-100 text-gray-400 px-3 py-1 rounded-full">OFFLINE</span>
                 </div>
                 <div class="relative w-full" style="height: 350px;">
                     <canvas id="fuzzyChart"></canvas>
@@ -66,17 +66,17 @@
             </div>
 
             <div class="lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border-b-8 border-cyan-400">
-                <span class="text-cyan-600 font-bold text-lg"><i class="fas fa-thermometer-half mr-2"></i>Suhu Air</span>
+                <span class="text-cyan-600 font-bold text-lg tracking-tight"><i class="fas fa-thermometer-half mr-2"></i>Suhu Air</span>
                 <h4 class="text-5xl font-black text-slate-800"><span id="suhu-val">{{ $latest->suhu ?? 0 }}</span><span class="text-2xl text-slate-400 font-light">°C</span></h4>
             </div>
 
             <div class="lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border-b-8 border-indigo-400">
-                <span class="text-indigo-600 font-bold text-lg"><i class="fas fa-vial mr-2"></i>Kadar pH</span>
+                <span class="text-indigo-600 font-bold text-lg tracking-tight"><i class="fas fa-vial mr-2"></i>Kadar pH</span>
                 <h4 class="text-5xl font-black text-slate-800" id="ph-val">{{ $latest->ph ?? 0 }}</h4>
             </div>
 
             <div class="lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border-b-8 border-blue-400">
-                <span class="text-blue-600 font-bold text-lg"><i class="fas fa-water mr-2"></i>Salinitas</span>
+                <span class="text-blue-600 font-bold text-lg tracking-tight"><i class="fas fa-water mr-2"></i>Salinitas</span>
                 <h4 class="text-5xl font-black text-slate-800"><span id="salinitas-val">{{ $latest->salinitas ?? 0 }}</span><span class="text-2xl text-slate-400 font-light">ppt</span></h4>
             </div>
 
@@ -100,7 +100,7 @@
                                 <th class="p-5">Kondisi</th>
                             </tr>
                         </thead>
-                        <tbody id="table-body" class="divide-y divide-slate-100"></tbody>
+                        <tbody id="table-body" class="divide-y divide-slate-100 text-sm"></tbody>
                     </table>
                 </div>
             </div>
@@ -124,67 +124,111 @@
                     pointBackgroundColor: '#fbbf24'
                 }]
             },
-            options: { responsive: true, maintainAspectRatio: false }
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                animation: { duration: 1000 }
+            }
         });
 
-        // Fungsi Toggle Start/Stop
+        // Fungsi Toggle Start/Stop (Website Controller)
         function toggleMonitoring() {
-            $.post("{{ route('toggle.status') }}", { _token: "{{ csrf_token() }}" }, function(data) {
-                const btn = $('#btn-toggle');
-                if(data.status == 'start') {
-                    btn.removeClass('bg-green-500').addClass('bg-red-500');
-                    $('#btn-text').text('HENTIKAN MONITORING SENSOR');
-                    $('#btn-icon').removeClass('fa-play-circle').addClass('fa-stop-circle');
-                } else {
-                    btn.removeClass('bg-red-500').addClass('bg-green-500');
-                    $('#btn-text').text('MULAI MONITORING SENSOR');
-                    $('#btn-icon').removeClass('fa-stop-circle').addClass('fa-play-circle');
-                }
+            // Beri efek loading saat diklik agar user tahu sistem merespon
+            $('#btn-text').text('MEMPROSES...');
+
+            $.post("/toggle-status", { 
+                _token: "{{ csrf_token() }}" 
+            }, function(data) {
+                updateButtonUI(data.status);
+                console.log("Status Monitoring Baru: " + data.status);
+            }).fail(function(xhr) {
+                alert("Gagal menghubungi server. Pastikan Laravel sedang berjalan.");
+                // Kembalikan teks asli jika gagal
+                location.reload(); 
             });
         }
 
-        // AJAX Update Data
+        // Fungsi Update UI Tombol
+        function updateButtonUI(status) {
+            const btn = $('#btn-toggle');
+            const icon = $('#btn-icon');
+            const text = $('#btn-text');
+            const indicator = $('#live-indicator');
+
+            if(status == 'start') {
+                btn.removeClass('bg-green-500').addClass('bg-red-500');
+                text.text('HENTIKAN MONITORING SENSOR');
+                icon.removeClass('fa-play-circle').addClass('fa-stop-circle');
+                indicator.text('LIVE DATA').removeClass('bg-gray-100 text-gray-400').addClass('bg-blue-50 text-blue-600 animate-pulse');
+            } else {
+                btn.removeClass('bg-red-500').addClass('bg-green-500');
+                text.text('MULAI MONITORING SENSOR');
+                icon.removeClass('fa-stop-circle').addClass('fa-play-circle');
+                indicator.text('OFFLINE').removeClass('bg-blue-50 text-blue-600 animate-pulse').addClass('bg-gray-100 text-gray-400');
+            }
+        }
+
+        // AJAX Update Data Dashboard
         function updateDashboard() {
             $.ajax({
                 url: "{{ route('fetch.data') }}",
                 method: "GET",
                 success: function(response) {
                     if(!response.latest) return;
+
+                    // Update Angka Sensor
                     $('#suhu-val').text(response.latest.suhu);
                     $('#ph-val').text(response.latest.ph);
                     $('#salinitas-val').text(response.latest.salinitas);
                     $('#kondisi-air-text').text(response.latest.kondisi_air);
 
+                    // Update Warna & Keterangan
                     if(response.latest.kondisi_air == 'Baik') {
                         $('#kondisi-air-text').attr('class', 'text-7xl font-black text-green-500 my-4 tracking-tighter');
                         $('#keterangan-text').text("Mantap! Kondisi air sangat mendukung pertumbuhan kepiting.");
+                    } else if(response.latest.kondisi_air == 'Sedang' || response.latest.kondisi_air == 'Normal') {
+                        $('#kondisi-air-text').attr('class', 'text-7xl font-black text-orange-500 my-4 tracking-tighter');
+                        $('#keterangan-text').text("Kondisi air cukup stabil, tetap pantau parameter sensor.");
                     } else {
                         $('#kondisi-air-text').attr('class', 'text-7xl font-black text-red-500 my-4 tracking-tighter');
-                        $('#keterangan-text').text("Perhatian! Segera cek parameter air tambak.");
+                        $('#keterangan-text').text("Perhatian! Segera cek parameter air tambak (Kondisi Buruk).");
                     }
 
+                    // Update Grafik
                     fuzzyChart.data.labels = response.chartLabels;
                     fuzzyChart.data.datasets[0].data = response.chartValues;
                     fuzzyChart.update();
 
+                    // Update Tabel Log
                     let rows = '';
                     response.history.forEach((data) => {
-                        let badge = data.kondisi_air == 'Baik' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
-                        rows += `<tr class="hover:bg-blue-50/30">
+                        let badgeColor = '';
+                        if(data.kondisi_air == 'Baik') badgeColor = 'bg-green-100 text-green-700';
+                        else if(data.kondisi_air == 'Buruk') badgeColor = 'bg-red-100 text-red-700';
+                        else badgeColor = 'bg-orange-100 text-orange-700';
+
+                        rows += `<tr class="hover:bg-blue-50/30 transition-colors">
                             <td class="p-5 font-semibold text-slate-700">${new Date(data.created_at).toLocaleString('id-ID')}</td>
                             <td class="p-5 text-center font-bold text-blue-600">${data.suhu}</td>
                             <td class="p-5 text-center font-bold text-blue-600">${data.ph}</td>
                             <td class="p-5 text-center font-bold text-blue-600">${data.salinitas}</td>
-                            <td class="p-5"><span class="px-4 py-1.5 rounded-lg text-xs font-black uppercase ${badge}">${data.kondisi_air}</span></td>
+                            <td class="p-5"><span class="px-4 py-1.5 rounded-lg text-xs font-black uppercase ${badgeColor}">${data.kondisi_air}</span></td>
                         </tr>`;
                     });
                     $('#table-body').html(rows);
+                },
+                error: function() {
+                    console.log("Menunggu koneksi ke server...");
                 }
             });
         }
 
-        setInterval(updateDashboard, 5000);
-        updateDashboard();
+        // Jalankan sinkronisasi UI awal berdasarkan status dari PHP
+        $(document).ready(function() {
+            updateButtonUI("{{ $status }}");
+            setInterval(updateDashboard, 5000);
+            updateDashboard();
+        });
     </script>
 </body>
 </html>

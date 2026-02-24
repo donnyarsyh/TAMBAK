@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class SensorData extends Model
 {
-    // Tambahkan baris di bawah ini
     protected $fillable = [
         'suhu',
         'ph',
