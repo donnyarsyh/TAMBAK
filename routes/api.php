@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\SensorController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FuzzyController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -13,3 +14,6 @@ Route::post('/send-data', [SensorController::class, 'store']);
 // Route kirim data yang kemarin juga pastikan di sini
 Route::post('/send-data', [DashboardController::class, 'store']);
 Route::get('/check-status', [DashboardController::class, 'checkStatus']);
+
+// Jalur untuk menerima data dari ESP32 dan memproses Fuzzy
+Route::post('/send-data', [FuzzyController::class, 'hitungFuzzy']);

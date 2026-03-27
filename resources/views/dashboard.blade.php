@@ -77,7 +77,7 @@
 
             <div class="lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border-b-8 border-blue-400">
                 <span class="text-blue-600 font-bold text-lg tracking-tight"><i class="fas fa-water mr-2"></i>Salinitas</span>
-                <h4 class="text-5xl font-black text-slate-800"><span id="salinitas-val">{{ $latest->salinitas ?? 0 }}</span><span class="text-2xl text-slate-400 font-light">ppt</span></h4>
+                <h4 class="text-5xl font-black text-slate-800"><span id="salinitas-val">{{ $latest->salinitas ?? 0 }}</span><span class="text-2xl text-slate-400 font-light ml-1">ppt</span></h4>
             </div>
 
             <div class="lg:col-span-12 bg-white rounded-2xl shadow-sm overflow-hidden mb-10">
@@ -94,9 +94,9 @@
                         <thead class="bg-slate-100 text-slate-600 uppercase text-xs font-bold">
                             <tr>
                                 <th class="p-5">Waktu</th>
-                                <th class="p-5 text-center">Suhu</th>
+                                <th class="p-5 text-center">Suhu (°C)</th>
                                 <th class="p-5 text-center">pH</th>
-                                <th class="p-5 text-center">Salinitas</th>
+                                <th class="p-5 text-center">Salinitas (ppm)</th>
                                 <th class="p-5">Kondisi</th>
                             </tr>
                         </thead>
@@ -131,24 +131,19 @@
             }
         });
 
-        // Fungsi Toggle Start/Stop (Website Controller)
+        // Toggle Monitoring
         function toggleMonitoring() {
-            // Beri efek loading saat diklik agar user tahu sistem merespon
             $('#btn-text').text('MEMPROSES...');
-
             $.post("/toggle-status", { 
                 _token: "{{ csrf_token() }}" 
             }, function(data) {
                 updateButtonUI(data.status);
-                console.log("Status Monitoring Baru: " + data.status);
             }).fail(function(xhr) {
-                alert("Gagal menghubungi server. Pastikan Laravel sedang berjalan.");
-                // Kembalikan teks asli jika gagal
+                alert("Gagal menghubungi server.");
                 location.reload(); 
             });
         }
 
-        // Fungsi Update UI Tombol
         function updateButtonUI(status) {
             const btn = $('#btn-toggle');
             const icon = $('#btn-icon');
@@ -168,7 +163,7 @@
             }
         }
 
-        // AJAX Update Data Dashboard
+        // AJAX Update Data
         function updateDashboard() {
             $.ajax({
                 url: "{{ route('fetch.data') }}",
@@ -176,30 +171,24 @@
                 success: function(response) {
                     if(!response.latest) return;
 
-                    // Update Angka Sensor
                     $('#suhu-val').text(response.latest.suhu);
                     $('#ph-val').text(response.latest.ph);
-                    $('#salinitas-val').text(response.latest.salinitas);
+                    // Update nilai salinitas (pastikan ESP32 sudah mengirim dalam satuan ppm)
+                    $('#salinitas-val').text(Math.round(response.latest.salinitas));
                     $('#kondisi-air-text').text(response.latest.kondisi_air);
 
-                    // Update Warna & Keterangan
                     if(response.latest.kondisi_air == 'Baik') {
                         $('#kondisi-air-text').attr('class', 'text-7xl font-black text-green-500 my-4 tracking-tighter');
-                        $('#keterangan-text').text("Mantap! Kondisi air sangat mendukung pertumbuhan kepiting.");
                     } else if(response.latest.kondisi_air == 'Sedang' || response.latest.kondisi_air == 'Normal') {
                         $('#kondisi-air-text').attr('class', 'text-7xl font-black text-orange-500 my-4 tracking-tighter');
-                        $('#keterangan-text').text("Kondisi air cukup stabil, tetap pantau parameter sensor.");
                     } else {
                         $('#kondisi-air-text').attr('class', 'text-7xl font-black text-red-500 my-4 tracking-tighter');
-                        $('#keterangan-text').text("Perhatian! Segera cek parameter air tambak (Kondisi Buruk).");
                     }
 
-                    // Update Grafik
                     fuzzyChart.data.labels = response.chartLabels;
                     fuzzyChart.data.datasets[0].data = response.chartValues;
                     fuzzyChart.update();
 
-                    // Update Tabel Log
                     let rows = '';
                     response.history.forEach((data) => {
                         let badgeColor = '';
@@ -211,19 +200,15 @@
                             <td class="p-5 font-semibold text-slate-700">${new Date(data.created_at).toLocaleString('id-ID')}</td>
                             <td class="p-5 text-center font-bold text-blue-600">${data.suhu}</td>
                             <td class="p-5 text-center font-bold text-blue-600">${data.ph}</td>
-                            <td class="p-5 text-center font-bold text-blue-600">${data.salinitas}</td>
+                            <td class="p-5 text-center font-bold text-blue-600">${Math.round(data.salinitas)}</td>
                             <td class="p-5"><span class="px-4 py-1.5 rounded-lg text-xs font-black uppercase ${badgeColor}">${data.kondisi_air}</span></td>
                         </tr>`;
                     });
                     $('#table-body').html(rows);
-                },
-                error: function() {
-                    console.log("Menunggu koneksi ke server...");
                 }
             });
         }
 
-        // Jalankan sinkronisasi UI awal berdasarkan status dari PHP
         $(document).ready(function() {
             updateButtonUI("{{ $status }}");
             setInterval(updateDashboard, 5000);

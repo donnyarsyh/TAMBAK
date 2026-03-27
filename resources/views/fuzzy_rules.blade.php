@@ -32,17 +32,17 @@
                     <thead class="bg-slate-50 text-slate-600 uppercase text-xs font-bold border-b">
                         <tr>
                             <th class="p-5">Kode</th>
-                            <th class="p-5 text-center">IF Suhu</th>
-                            <th class="p-5 text-center">AND pH</th>
-                            <th class="p-5 text-center">AND Salinitas</th>
-                            <th class="p-5 text-center bg-gray-50">THEN Output</th>
+                            <th class="p-5 text-center">Suhu</th>
+                            <th class="p-5 text-center">pH</th>
+                            <th class="p-5 text-center">Salinitas</th>
+                            <th class="p-5 text-center bg-gray-50">Output</th>
                             <th class="p-5 text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse($rules as $rule)
                         <tr class="hover:bg-gray-50 transition-colors">
-                            <td class="p-5 text-blue-900 font-black">R{{ $rule->kode_rule }}</td>
+                            <td class="p-5 text-blue-900 font-black">{{ $rule->kode_rule }}</td>
                             
                             <td class="p-5 text-center text-gray-700 font-medium">{{ $rule->suhu }}</td>
                             <td class="p-5 text-center text-gray-700 font-medium">{{ $rule->ph }}</td>
@@ -106,7 +106,7 @@
                     </div>
 
                     <div>
-                        <label class="text-xs font-bold uppercase text-gray-400 mb-1 block">IF Suhu</label>
+                        <label class="text-xs font-bold uppercase text-gray-400 mb-1 block">Suhu</label>
                         <select name="suhu" id="suhu" class="w-full border rounded-lg p-3 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-gray-700">
                             <option value="Baik">Baik</option>
                             <option value="Sedang">Sedang</option>
@@ -115,7 +115,7 @@
                     </div>
 
                     <div>
-                        <label class="text-xs font-bold uppercase text-gray-400 mb-1 block">AND pH Air</label>
+                        <label class="text-xs font-bold uppercase text-gray-400 mb-1 block">pH</label>
                         <select name="ph" id="ph" class="w-full border rounded-lg p-3 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-gray-700">
                             <option value="Baik">Baik</option>
                             <option value="Sedang">Sedang</option>
@@ -124,7 +124,7 @@
                     </div>
 
                     <div>
-                        <label class="text-xs font-bold uppercase text-gray-400 mb-1 block">AND Salinitas</label>
+                        <label class="text-xs font-bold uppercase text-gray-400 mb-1 block">Salinitas</label>
                         <select name="salinitas" id="salinitas" class="w-full border rounded-lg p-3 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-gray-700">
                             <option value="Baik">Baik</option>
                             <option value="Sedang">Sedang</option>
@@ -133,7 +133,7 @@
                     </div>
 
                     <div>
-                        <label class="text-xs font-bold uppercase text-gray-400 mb-1 block text-blue-600">THEN Output (Kondisi Air)</label>
+                        <label class="text-xs font-bold uppercase text-gray-400 mb-1 block text-blue-600">Output (Kondisi Air)</label>
                         <select name="output" id="output" class="w-full border-2 border-blue-50 rounded-lg p-3 bg-white focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-800">
                             <option value="Baik" class="text-green-600">Baik</option>
                             <option value="Sedang" class="text-orange-600">Sedang</option>
