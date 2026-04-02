@@ -11,7 +11,6 @@ Route::get('/', [DashboardController::class, 'index']);
 Route::get('/fetch-data', [DashboardController::class, 'fetchData'])->name('fetch.data');
 Route::post('/toggle-status', [DashboardController::class, 'toggleStatus'])->name('toggle.status');
 Route::get('/check-status', [App\Http\Controllers\DashboardController::class, 'checkStatus']);
-
 Route::get('/fuzzy-rules', [DashboardController::class, 'fuzzyRules'])->name('fuzzy.rules');
 
 // Route untuk menyimpan data baru (POST)

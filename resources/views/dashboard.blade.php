@@ -36,13 +36,10 @@
                     </h3>
                     <p class="text-sm text-gray-400 font-medium">Kualitas Air Saat Ini:</p>
                     <h2 id="kondisi-air-text" class="text-7xl font-black text-green-500 my-4 tracking-tighter">{{ $latest->kondisi_air ?? '-' }}</h2>
-                    <p id="keterangan-text" class="text-gray-600 leading-relaxed mb-8 italic text-sm text-slate-500">
-                        Menunggu data dari sensor...
-                    </p>
                 </div>
-                <button onclick="updateDashboard()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center justify-center">
-                    <i class="fas fa-sync-alt mr-3"></i> Refresh Data
-                </button>
+                <div>
+                    <p class="text-sm text-gray-400 font-medium">Hasil kualitas air tersebut dihitung menggunakan pendekatan Fuzzy Tsukamoto yang berdasarkan rules base (aturan) yang telah dibuat sebelumnya</p>
+                </div>
             </div>
 
             <div class="lg:col-span-8 bg-white p-8 rounded-2xl shadow-sm">
@@ -173,7 +170,6 @@
 
                     $('#suhu-val').text(response.latest.suhu);
                     $('#ph-val').text(response.latest.ph);
-                    // Update nilai salinitas (pastikan ESP32 sudah mengirim dalam satuan ppm)
                     $('#salinitas-val').text(Math.round(response.latest.salinitas));
                     $('#kondisi-air-text').text(response.latest.kondisi_air);
 

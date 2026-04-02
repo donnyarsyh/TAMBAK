@@ -25,7 +25,11 @@
                 </button>
             </div>
         </div>
-
+        <div>
+            <p class="text-sm text-gray-400 font-medium">Suhu= (Buruk= ≤22°C dan ≥38°C || Sedang= 20°C - 27°C ; 33°C - 40°C || Baik= 25°C - 35°C)</p>
+            <p class="text-sm text-gray-400 font-medium">pH= (Buruk= ≤6.8 dan ≥8.8 || Sedang= 6.5 - 7.5 ; 8 - 9 || Baik= 7.0 - 8.5)</p>
+            <p class="text-sm text-gray-400 font-medium">(Salinitas= Buruk= ≤10ppt dan ≥33ppt || Sedang= 8ppt - 17ppt ; 28ppt - 35ppt || Baik= 15ppt - 30ppt)</p>
+        </div>
         <div class="bg-white rounded-2xl shadow-sm overflow-hidden border">
             <div class="overflow-x-auto">
                 <table class="w-full text-left">

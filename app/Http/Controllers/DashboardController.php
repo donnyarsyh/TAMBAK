@@ -6,6 +6,7 @@ use App\Models\SensorData;
 use App\Models\FuzzyRule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\FuzzyController;
 
 class DashboardController extends Controller
 {
@@ -36,10 +37,8 @@ class DashboardController extends Controller
         ]);
     }
 
-    // Fungsi store ini hanya cadangan, ESP32 sebaiknya menembak FuzzyController@hitungFuzzy
     public function store(Request $request) 
     {
-        // ... (Tetap gunakan logika hitungFuzzy di sini jika rutenya mengarah ke sini)
         $fuzzy = new FuzzyController();
         $suhu = (float) $request->suhu;
         $ph = (float) $request->ph;
