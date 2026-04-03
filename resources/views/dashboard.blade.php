@@ -35,10 +35,10 @@
                         <span class="w-2 h-2 bg-blue-600 rounded-full mr-2"></span> Status Kualitas Air
                     </h3>
                     <p class="text-sm text-gray-400 font-medium">Kualitas Air Saat Ini:</p>
-                    <h2 id="kondisi-air-text" class="text-7xl font-black text-green-500 my-4 tracking-tighter">{{ $latest->kondisi_air ?? '-' }}</h2>
+                    <h2 id="kondisi-air-text" class="text-7xl font-black text-gray-300 my-4 tracking-tighter">{{ $latest->kondisi_air ?? '-' }}</h2>
                 </div>
                 <div>
-                    <p class="text-sm text-gray-400 font-medium">Hasil kualitas air tersebut dihitung menggunakan pendekatan Fuzzy Tsukamoto yang berdasarkan rules base (aturan) yang telah dibuat sebelumnya</p>
+                    <p class="text-xs text-gray-400 leading-relaxed italic">Hasil kualitas air tersebut dihitung menggunakan pendekatan Fuzzy Tsukamoto yang berdasarkan rules base (aturan) yang telah dibuat sebelumnya.</p>
                 </div>
             </div>
 
@@ -74,7 +74,14 @@
 
             <div class="lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border-b-8 border-blue-400">
                 <span class="text-blue-600 font-bold text-lg tracking-tight"><i class="fas fa-water mr-2"></i>Salinitas</span>
-                <h4 class="text-5xl font-black text-slate-800"><span id="salinitas-val">{{ $latest->salinitas ?? 0 }}</span><span class="text-2xl text-slate-400 font-light ml-1">ppt</span></h4>
+                <div class="flex items-baseline gap-2">
+                    <h4 class="text-5xl font-black text-slate-800">
+                        <span id="salinitas-val">{{ round($latest->salinitas ?? 0) }}</span><span class="text-xl text-slate-400 font-light ml-1">ppt</span>
+                    </h4>
+                    <div class="text-slate-400 font-medium text-sm italic">
+                        (<span id="salinitas-ppm-val">{{ ($latest->salinitas ?? 0) * 1000 }}</span> ppm)
+                    </div>
+                </div>
             </div>
 
             <div class="lg:col-span-12 bg-white rounded-2xl shadow-sm overflow-hidden mb-10">
@@ -93,7 +100,7 @@
                                 <th class="p-5">Waktu</th>
                                 <th class="p-5 text-center">Suhu (°C)</th>
                                 <th class="p-5 text-center">pH</th>
-                                <th class="p-5 text-center">Salinitas (ppm)</th>
+                                <th class="p-5 text-center">Salinitas (ppt)</th>
                                 <th class="p-5">Kondisi</th>
                             </tr>
                         </thead>
@@ -105,15 +112,14 @@
     </div>
 
     <script>
-        // Inisialisasi Chart
         const ctx = document.getElementById('fuzzyChart').getContext('2d');
         let fuzzyChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: [],
+                labels: [], 
                 datasets: [{
                     label: 'Nilai Fuzzy (Z)',
-                    data: [],
+                    data: [], 
                     borderColor: '#3b82f6',
                     backgroundColor: 'rgba(59, 130, 246, 0.1)',
                     fill: true,
@@ -124,20 +130,16 @@
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false,
-                animation: { duration: 1000 }
+                scales: {
+                    y: { beginAtZero: true, max: 100 }
+                }
             }
         });
 
-        // Toggle Monitoring
         function toggleMonitoring() {
             $('#btn-text').text('MEMPROSES...');
-            $.post("/toggle-status", { 
-                _token: "{{ csrf_token() }}" 
-            }, function(data) {
+            $.post("/toggle-status", { _token: "{{ csrf_token() }}" }, function(data) {
                 updateButtonUI(data.status);
-            }).fail(function(xhr) {
-                alert("Gagal menghubungi server.");
-                location.reload(); 
             });
         }
 
@@ -160,40 +162,47 @@
             }
         }
 
-        // AJAX Update Data
         function updateDashboard() {
             $.ajax({
                 url: "{{ route('fetch.data') }}",
                 method: "GET",
                 success: function(response) {
-                    if(!response.latest) return;
+                    if(!response.latest || response.chartValues.length === 0) {
+                        fuzzyChart.data.labels = [];
+                        fuzzyChart.data.datasets[0].data = [];
+                        fuzzyChart.update();
+                        return;
+                    }
 
                     $('#suhu-val').text(response.latest.suhu);
                     $('#ph-val').text(response.latest.ph);
-                    $('#salinitas-val').text(Math.round(response.latest.salinitas));
+
+                    let valPPT = parseFloat(response.latest.salinitas);
+                    $('#salinitas-val').text(Math.round(valPPT)); // Menghilangkan koma
+                    $('#salinitas-ppm-val').text(Math.round(valPPT * 1000));
+
                     $('#kondisi-air-text').text(response.latest.kondisi_air);
 
+                    let kClass = 'text-7xl font-black my-4 tracking-tighter ';
                     if(response.latest.kondisi_air == 'Baik') {
-                        $('#kondisi-air-text').attr('class', 'text-7xl font-black text-green-500 my-4 tracking-tighter');
-                    } else if(response.latest.kondisi_air == 'Sedang' || response.latest.kondisi_air == 'Normal') {
-                        $('#kondisi-air-text').attr('class', 'text-7xl font-black text-orange-500 my-4 tracking-tighter');
+                        $('#kondisi-air-text').attr('class', kClass + 'text-green-500');
+                    } else if(response.latest.kondisi_air == 'Sedang') {
+                        $('#kondisi-air-text').attr('class', kClass + 'text-orange-500');
                     } else {
-                        $('#kondisi-air-text').attr('class', 'text-7xl font-black text-red-500 my-4 tracking-tighter');
+                        $('#kondisi-air-text').attr('class', kClass + 'text-red-500');
                     }
 
                     fuzzyChart.data.labels = response.chartLabels;
                     fuzzyChart.data.datasets[0].data = response.chartValues;
-                    fuzzyChart.update();
+                    fuzzyChart.update('none');
 
                     let rows = '';
                     response.history.forEach((data) => {
-                        let badgeColor = '';
-                        if(data.kondisi_air == 'Baik') badgeColor = 'bg-green-100 text-green-700';
-                        else if(data.kondisi_air == 'Buruk') badgeColor = 'bg-red-100 text-red-700';
-                        else badgeColor = 'bg-orange-100 text-orange-700';
+                        let badgeColor = (data.kondisi_air == 'Baik') ? 'bg-green-100 text-green-700' : 
+                                         (data.kondisi_air == 'Buruk' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700');
 
                         rows += `<tr class="hover:bg-blue-50/30 transition-colors">
-                            <td class="p-5 font-semibold text-slate-700">${new Date(data.created_at).toLocaleString('id-ID')}</td>
+                            <td class="p-5 font-semibold text-slate-700">${new Date(data.created_at).toLocaleTimeString('id-ID')}</td>
                             <td class="p-5 text-center font-bold text-blue-600">${data.suhu}</td>
                             <td class="p-5 text-center font-bold text-blue-600">${data.ph}</td>
                             <td class="p-5 text-center font-bold text-blue-600">${Math.round(data.salinitas)}</td>
@@ -207,8 +216,8 @@
 
         $(document).ready(function() {
             updateButtonUI("{{ $status }}");
-            setInterval(updateDashboard, 5000);
             updateDashboard();
+            setInterval(updateDashboard, 5000);
         });
     </script>
 </body>
