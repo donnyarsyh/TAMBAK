@@ -24,7 +24,7 @@ class SensorController extends Controller
                 $kondisi = 'Buruk';
             } else {
                 $kondisi = 'Baik';
-            }
+            }  
 
             // 3. Simpan ke Database
             $data = SensorData::create([
