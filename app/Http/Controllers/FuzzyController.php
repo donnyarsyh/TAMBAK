@@ -1,39 +1,66 @@
 <?php
+
 namespace App\Http\Controllers;
+
 use Illuminate\Http\Request;
 use App\Models\SensorData; 
 use Exception;
+use Carbon\Carbon; // Pastikan library waktu ini terpanggil
+use Illuminate\Support\Facades\Log; // Tambahkan ini untuk memantau error
 
 class FuzzyController extends Controller
 {
     public function hitungFuzzy(Request $request)
     {
+        // Log setiap data yang masuk dari ESP32 untuk memastikan koneksi aman
+        Log::info('Data masuk dari ESP32:', $request->all());
+
         try {
-            $suhu = (float) $request->suhu;
-            $ph = (float) $request->ph;
-            $salinitas_ppt = (float) $request->salinitas;
+            // 1. Ambil data dari Request ESP32
+            $suhu = (float) $request->input('suhu');
+            $ph = (float) $request->input('ph');
+            $v_ph = (float) $request->input('v_ph');
+            $salinitas_ppt = (float) $request->input('salinitas');
+
+            // 2. Proses Fuzzifikasi
             $muS = $this->fuzzifikasiSuhu($suhu);
             $muP = $this->fuzzifikasiph($ph);
             $muL = $this->fuzzifikasiSalinitas($salinitas_ppt);
             
-            // Proses Inferensi Tsukamoto
+            // 3. Proses Inferensi Tsukamoto
             $hasil_z = $this->inferensiTsukamoto($muS, $muP, $muL);
 
-            // Klasifikasi berdasarkan Nilai Z (Hasil Defuzzifikasi)
+            // 4. Klasifikasi Hasil
             $kondisi = ($hasil_z >= 70) ? 'Baik' : (($hasil_z >= 40) ? 'Sedang' : 'Buruk');
 
+            // Cek apakah model SensorData bisa dipanggil
+            if (!class_exists('App\Models\SensorData')) {
+                throw new Exception('Model SensorData tidak ditemukan!');
+            }
+
+            // 5. SIMPAN KE DATABASE
             $data = SensorData::create([
                 'suhu' => $suhu,
                 'ph' => $ph,
-                // 'v_ph' => $request->v_ph ?? 0, // Pastikan menangkap voltase dari request
+                'v_ph' => $v_ph, 
                 'salinitas' => $salinitas_ppt,
                 'nilai_z' => $hasil_z,
                 'kondisi_air' => $kondisi
             ]);
 
-            return response()->json(['status' => 'success', 'hasil_z' => $hasil_z, 'kondisi' => $kondisi], 200);
+            // 6. OTOMATIS HAPUS DATA > 7 HARI
+            // Menghapus record yang lebih tua dari 168 jam (7 hari)
+            SensorData::where('created_at', '<', Carbon::now()->subDays(7))->delete();
+
+            return response()->json([
+                'status' => 'success', 
+                'hasil_z' => $hasil_z, 
+                'kondisi' => $kondisi
+            ], 200);
 
         } catch (Exception $e) {
+            // Tulis error spesifik ke log agar kita tahu baris mana yang rusak
+            Log::error('Fuzzy Error: ' . $e->getMessage());
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
     }
@@ -87,42 +114,36 @@ class FuzzyController extends Controller
         return $mu;
     }
 
-    // --- INFERENSI TSUKAMOTO ---
     public function inferensiTsukamoto($muS, $muP, $muL) {
         $zBaik = 100; $zSedang = 50; $zBuruk = 0;
         $rules = [];
-        // KELOMPOK BAIK (Hanya jika mayoritas Baik/Sedang Ringan)
-        $rules[] = ['a' => min($muS['baik'],   $muP['baik'],   $muL['baik']),   'z' => $zBaik];   // R1
-        $rules[] = ['a' => min($muS['baik'],   $muP['sedang'], $muL['baik']),   'z' => $zBaik];   // R2
-        $rules[] = ['a' => min($muS['baik'],   $muP['baik'],   $muL['sedang']), 'z' => $zBaik];   // R3
-        $rules[] = ['a' => min($muS['sedang'], $muP['baik'],   $muL['baik']),   'z' => $zBaik];   // R4
-        $rules[] = ['a' => min($muS['baik'],   $muP['sedang'], $muL['sedang']), 'z' => $zBaik];   // R5
-        $rules[] = ['a' => min($muS['sedang'], $muP['sedang'], $muL['baik']),   'z' => $zBaik];   // R6
-        $rules[] = ['a' => min($muS['sedang'], $muP['baik'],   $muL['sedang']), 'z' => $zBaik];   // R7
-
-        // KELOMPOK SEDANG (Kondisi mulai tidak stabil)
-        $rules[] = ['a' => min($muS['sedang'], $muP['sedang'], $muL['sedang']), 'z' => $zSedang]; // R8
-        $rules[] = ['a' => min($muS['baik'],   $muP['baik'],   $muL['buruk']),  'z' => $zSedang]; // R9
-        $rules[] = ['a' => min($muS['buruk'],  $muP['baik'],   $muL['baik']),   'z' => $zSedang]; // R10
-        $rules[] = ['a' => min($muS['baik'],   $muP['buruk'],  $muL['baik']),   'z' => $zSedang]; // R11
-
-        // KELOMPOK BURUK (Jika ada kombinasi Buruk + Sedang atau Buruk + Buruk)
-        $rules[] = ['a' => min($muS['baik'],   $muP['sedang'], $muL['buruk']),  'z' => $zBuruk];  // R12
-        $rules[] = ['a' => min($muS['baik'],   $muP['buruk'],  $muL['sedang']), 'z' => $zBuruk];  // R13
-        $rules[] = ['a' => min($muS['sedang'], $muP['baik'],   $muL['buruk']),  'z' => $zBuruk];  // R14
-        $rules[] = ['a' => min($muS['sedang'], $muP['buruk'],  $muL['baik']),   'z' => $zBuruk];  // R15
-        $rules[] = ['a' => min($muS['buruk'],  $muP['sedang'], $muL['baik']),   'z' => $zBuruk];  // R16
-        $rules[] = ['a' => min($muS['buruk'],  $muP['baik'],   $muL['sedang']), 'z' => $zBuruk];  // R17
-        $rules[] = ['a' => min($muS['buruk'],  $muP['sedang'], $muL['sedang']), 'z' => $zBuruk];  // R18
-        $rules[] = ['a' => min($muS['sedang'], $muP['sedang'], $muL['buruk']),  'z' => $zBuruk];  // R19
-        $rules[] = ['a' => min($muS['sedang'], $muP['buruk'],  $muL['sedang']), 'z' => $zBuruk];  // R20
-        $rules[] = ['a' => min($muS['buruk'],  $muP['buruk'],  $muL['baik']),   'z' => $zBuruk];  // R21
-        $rules[] = ['a' => min($muS['buruk'],  $muP['baik'],   $muL['buruk']),  'z' => $zBuruk];  // R22
-        $rules[] = ['a' => min($muS['baik'],   $muP['buruk'],  $muL['buruk']),  'z' => $zBuruk];  // R23
-        $rules[] = ['a' => min($muS['buruk'],  $muP['buruk'],  $muL['buruk']),  'z' => $zBuruk];  // R24
-        $rules[] = ['a' => min($muS['buruk'],  $muP['sedang'], $muL['buruk']),  'z' => $zBuruk];  // R25
-        $rules[] = ['a' => min($muS['sedang'], $muP['buruk'],  $muL['buruk']),  'z' => $zBuruk];  // R26
-        $rules[] = ['a' => min($muS['buruk'],  $muP['buruk'],  $muL['sedang']), 'z' => $zBuruk];  // R27
+        $rules[] = ['a' => min($muS['baik'], $muP['baik'], $muL['baik']), 'z' => $zBaik];
+        $rules[] = ['a' => min($muS['baik'], $muP['sedang'], $muL['baik']), 'z' => $zBaik];
+        $rules[] = ['a' => min($muS['baik'], $muP['baik'], $muL['sedang']), 'z' => $zBaik];
+        $rules[] = ['a' => min($muS['sedang'], $muP['baik'], $muL['baik']), 'z' => $zBaik];
+        $rules[] = ['a' => min($muS['baik'], $muP['sedang'], $muL['sedang']), 'z' => $zBaik];
+        $rules[] = ['a' => min($muS['sedang'], $muP['sedang'], $muL['baik']), 'z' => $zBaik];
+        $rules[] = ['a' => min($muS['sedang'], $muP['baik'], $muL['sedang']), 'z' => $zBaik];
+        $rules[] = ['a' => min($muS['sedang'], $muP['sedang'], $muL['sedang']), 'z' => $zSedang];
+        $rules[] = ['a' => min($muS['baik'], $muP['baik'], $muL['buruk']), 'z' => $zSedang];
+        $rules[] = ['a' => min($muS['buruk'], $muP['baik'], $muL['baik']), 'z' => $zSedang];
+        $rules[] = ['a' => min($muS['baik'], $muP['buruk'], $muL['baik']), 'z' => $zSedang];
+        $rules[] = ['a' => min($muS['baik'], $muP['sedang'], $muL['buruk']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['baik'], $muP['buruk'], $muL['sedang']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['sedang'], $muP['baik'], $muL['buruk']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['sedang'], $muP['buruk'], $muL['baik']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['buruk'], $muP['sedang'], $muL['baik']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['buruk'], $muP['baik'], $muL['sedang']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['buruk'], $muP['sedang'], $muL['sedang']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['sedang'], $muP['sedang'], $muL['buruk']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['sedang'], $muP['buruk'], $muL['sedang']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['buruk'], $muP['buruk'], $muL['baik']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['buruk'], $muP['baik'], $muL['buruk']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['baik'], $muP['buruk'], $muL['buruk']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['buruk'], $muP['buruk'], $muL['buruk']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['buruk'], $muP['sedang'], $muL['buruk']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['sedang'], $muP['buruk'], $muL['buruk']), 'z' => $zBuruk];
+        $rules[] = ['a' => min($muS['buruk'], $muP['buruk'], $muL['sedang']), 'z' => $zBuruk];
 
         $total_az = 0; $total_a = 0;
         foreach ($rules as $rule) {
