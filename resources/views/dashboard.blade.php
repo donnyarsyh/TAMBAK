@@ -35,10 +35,10 @@
                         <span class="w-2 h-2 bg-blue-600 rounded-full mr-2"></span> Status Kualitas Air
                     </h3>
                     <p class="text-sm text-gray-400 font-medium">Kualitas Air Saat Ini:</p>
-                    <h2 id="kondisi-air-text" class="text-7xl font-black text-gray-300 my-4 tracking-tighter">{{ $latest->kondisi_air ?? '-' }}</h2>
+                    <h2 id="kondisi-air-text" class="text-7xl font-black text-gray-300 my-4 tracking-tighter transition-colors duration-500">{{ $latest->kondisi_air ?? '-' }}</h2>
                 </div>
                 <div>
-                    <p class="text-xs text-gray-400 leading-relaxed italic">Hasil kualitas air tersebut dihitung menggunakan pendekatan Fuzzy Tsukamoto yang berdasarkan rules base (aturan) yang telah dibuat sebelumnya.</p>
+                    <p class="text-xs text-gray-400 leading-relaxed italic">Hasil kualitas air tersebut dihitung menggunakan pendekatan Fuzzy Tsukamoto berdasarkan rules base yang tersimpan.</p>
                 </div>
             </div>
 
@@ -79,15 +79,15 @@
                         <span id="salinitas-val">{{ round($latest->salinitas ?? 0) }}</span><span class="text-xl text-slate-400 font-light ml-1">ppt</span>
                     </h4>
                     <div class="text-slate-400 font-medium text-sm italic">
-                        (<span id="salinitas-ppm-val">{{ ($latest->salinitas ?? 0) * 1000 }}</span> ppm)
+                        (<span id="salinitas-ppm-val">{{ round(($latest->salinitas ?? 0) * 1000) }}</span> ppm)
                     </div>
                 </div>
             </div>
 
-            <div class="lg:col-span-12 bg-white rounded-2xl shadow-sm overflow-hidden mb-10">
+            <div class="lg:col-span-12 bg-white rounded-2xl shadow-sm overflow-hidden mb-10 border border-gray-100">
                 <div class="p-6 border-b flex justify-between items-center bg-gray-50/50">
                     <h3 class="font-black text-slate-700 uppercase tracking-widest text-sm flex items-center">
-                        <i class="fas fa-history mr-2 text-blue-600"></i>Log Riwayat Terkini
+                        <i class="fas fa-history mr-2 text-blue-600"></i>Log Riwayat (100 Data Terakhir)
                     </h3>
                     <a href="{{ route('export.log') }}" class="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition flex items-center shadow-md shadow-green-100">
                         <i class="fas fa-file-excel mr-2"></i> Unduh Data
@@ -97,14 +97,16 @@
                     <table class="w-full text-left">
                         <thead class="bg-slate-100 text-slate-600 uppercase text-xs font-bold">
                             <tr>
-                                <th class="p-5">Waktu</th>
+                                <th class="p-5">Tanggal & Waktu</th>
                                 <th class="p-5 text-center">Suhu (°C)</th>
                                 <th class="p-5 text-center">pH</th>
                                 <th class="p-5 text-center">Salinitas (ppt)</th>
+                                <th class="p-5 text-center">Nilai Z</th>
                                 <th class="p-5">Kondisi</th>
                             </tr>
                         </thead>
-                        <tbody id="table-body" class="divide-y divide-slate-100 text-sm"></tbody>
+                        <tbody id="table-body" class="divide-y divide-slate-100 text-sm">
+                            </tbody>
                     </table>
                 </div>
             </div>
@@ -130,6 +132,7 @@
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false,
+                animation: { duration: 800 },
                 scales: {
                     y: { beginAtZero: true, max: 100 }
                 }
@@ -137,9 +140,15 @@
         });
 
         function toggleMonitoring() {
-            $('#btn-text').text('MEMPROSES...');
+            const btnText = $('#btn-text');
+            const originalText = btnText.text();
+            btnText.text('MEMPROSES...');
+            
             $.post("/toggle-status", { _token: "{{ csrf_token() }}" }, function(data) {
                 updateButtonUI(data.status);
+            }).fail(function() {
+                alert("Gagal mengubah status monitoring.");
+                btnText.text(originalText);
             });
         }
 
@@ -167,31 +176,29 @@
                 url: "{{ route('fetch.data') }}",
                 method: "GET",
                 success: function(response) {
-                    if(!response.latest || response.chartValues.length === 0) {
-                        fuzzyChart.data.labels = [];
-                        fuzzyChart.data.datasets[0].data = [];
-                        fuzzyChart.update();
-                        return;
-                    }
+                    if(!response.latest) return;
 
+                    // Update Card Values
                     $('#suhu-val').text(response.latest.suhu);
                     $('#ph-val').text(response.latest.ph);
-
                     let valPPT = parseFloat(response.latest.salinitas);
-                    $('#salinitas-val').text(Math.round(valPPT)); // Menghilangkan koma
+                    $('#salinitas-val').text(Math.round(valPPT));
                     $('#salinitas-ppm-val').text(Math.round(valPPT * 1000));
 
-                    $('#kondisi-air-text').text(response.latest.kondisi_air);
-
+                    // Update Status Kualitas Air
+                    const kText = $('#kondisi-air-text');
+                    kText.text(response.latest.kondisi_air);
                     let kClass = 'text-7xl font-black my-4 tracking-tighter ';
+                    
                     if(response.latest.kondisi_air == 'Baik') {
-                        $('#kondisi-air-text').attr('class', kClass + 'text-green-500');
+                        kText.attr('class', kClass + 'text-green-500');
                     } else if(response.latest.kondisi_air == 'Sedang') {
-                        $('#kondisi-air-text').attr('class', kClass + 'text-orange-500');
+                        kText.attr('class', kClass + 'text-orange-500');
                     } else {
-                        $('#kondisi-air-text').attr('class', kClass + 'text-red-500');
+                        kText.attr('class', kClass + 'text-red-500');
                     }
 
+                    // Update Chart
                     fuzzyChart.data.labels = response.chartLabels;
                     fuzzyChart.data.datasets[0].data = response.chartValues;
                     fuzzyChart.update('none');
@@ -200,12 +207,29 @@
                     response.history.forEach((data) => {
                         let badgeColor = (data.kondisi_air == 'Baik') ? 'bg-green-100 text-green-700' : 
                                          (data.kondisi_air == 'Buruk' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700');
+                        
+                        // Format Tanggal dan Jam Indonesia
+                        let dateObj = new Date(data.created_at);
+                        let formattedDate = dateObj.toLocaleDateString('id-ID', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric'
+                        });
+                        let formattedTime = dateObj.toLocaleTimeString('id-ID', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                        });
 
                         rows += `<tr class="hover:bg-blue-50/30 transition-colors">
-                            <td class="p-5 font-semibold text-slate-700">${new Date(data.created_at).toLocaleTimeString('id-ID')}</td>
+                            <td class="p-5 font-semibold text-slate-700">
+                                <span class="block text-xs text-gray-400 font-normal">${formattedDate}</span>
+                                ${formattedTime}
+                            </td>
                             <td class="p-5 text-center font-bold text-blue-600">${data.suhu}</td>
                             <td class="p-5 text-center font-bold text-blue-600">${data.ph}</td>
                             <td class="p-5 text-center font-bold text-blue-600">${Math.round(data.salinitas)}</td>
+                            <td class="p-5 text-center font-bold text-slate-500">${data.nilai_z ? parseFloat(data.nilai_z).toFixed(2) : '-'}</td>
                             <td class="p-5"><span class="px-4 py-1.5 rounded-lg text-xs font-black uppercase ${badgeColor}">${data.kondisi_air}</span></td>
                         </tr>`;
                     });

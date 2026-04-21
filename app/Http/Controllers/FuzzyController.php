@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\SensorData; 
 use Exception;
-use Carbon\Carbon; // Pastikan library waktu ini terpanggil
-use Illuminate\Support\Facades\Log; // Tambahkan ini untuk memantau error
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Log; // untuk memantau error
 
 class FuzzyController extends Controller
 {
@@ -16,21 +16,21 @@ class FuzzyController extends Controller
         Log::info('Data masuk dari ESP32:', $request->all());
 
         try {
-            // 1. Ambil data dari Request ESP32
+            // Ambil data dari ESP32
             $suhu = (float) $request->input('suhu');
             $ph = (float) $request->input('ph');
             $v_ph = (float) $request->input('v_ph');
             $salinitas_ppt = (float) $request->input('salinitas');
 
-            // 2. Proses Fuzzifikasi
+            // Fuzzifikasi
             $muS = $this->fuzzifikasiSuhu($suhu);
             $muP = $this->fuzzifikasiph($ph);
             $muL = $this->fuzzifikasiSalinitas($salinitas_ppt);
             
-            // 3. Proses Inferensi Tsukamoto
+            // Inferensi Tsukamoto
             $hasil_z = $this->inferensiTsukamoto($muS, $muP, $muL);
 
-            // 4. Klasifikasi Hasil
+            // Klasifikasi Hasil
             $kondisi = ($hasil_z >= 70) ? 'Baik' : (($hasil_z >= 40) ? 'Sedang' : 'Buruk');
 
             // Cek apakah model SensorData bisa dipanggil
@@ -38,7 +38,7 @@ class FuzzyController extends Controller
                 throw new Exception('Model SensorData tidak ditemukan!');
             }
 
-            // 5. SIMPAN KE DATABASE
+            // SIMPAN KE DATABASE
             $data = SensorData::create([
                 'suhu' => $suhu,
                 'ph' => $ph,
@@ -48,8 +48,7 @@ class FuzzyController extends Controller
                 'kondisi_air' => $kondisi
             ]);
 
-            // 6. OTOMATIS HAPUS DATA > 7 HARI
-            // Menghapus record yang lebih tua dari 168 jam (7 hari)
+            // OTOMATIS HAPUS DATA > 7 HARI
             SensorData::where('created_at', '<', Carbon::now()->subDays(7))->delete();
 
             return response()->json([
@@ -59,7 +58,7 @@ class FuzzyController extends Controller
             ], 200);
 
         } catch (Exception $e) {
-            // Tulis error spesifik ke log agar kita tahu baris mana yang rusak
+            // Tulis error spesifik ke log agar tahu baris mana yang rusak
             Log::error('Fuzzy Error: ' . $e->getMessage());
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
@@ -114,6 +113,7 @@ class FuzzyController extends Controller
         return $mu;
     }
 
+    // --- INFERENSI TSUKAMOTO ---
     public function inferensiTsukamoto($muS, $muP, $muL) {
         $zBaik = 100; $zSedang = 50; $zBuruk = 0;
         $rules = [];
