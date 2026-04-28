@@ -17,11 +17,23 @@ class FuzzyController extends Controller
 
         try {
             // Ambil data dari ESP32
-            $suhu = (float) $request->input('suhu');
+            $suhu_mentah = (float) $request->input('suhu');
             $ph = (float) $request->input('ph');
             $v_ph = (float) $request->input('v_ph');
-            $salinitas_ppt = (float) $request->input('salinitas');
+            $salinitas_mentah = (float) $request->input('salinitas');
 
+            
+            // ===== LOGIKA KONVERSI/KALIBRASI SOFTWARE =====
+            // Konversi Suhu (Offset Correction)
+            // Manual 29.8, IoT 28.5 -> Tambahkan 1.3
+            $suhu = $suhu_mentah + 1.3;
+
+            // Berdasarkan data: Manual 500, IoT 490 (Selisih 10)
+            // Formula: Nilai_Baru = Nilai_Lama * (Target / Aktual)
+            // 500 / 490 = 1.0204
+            $faktor_kalibrasi = 1.0204; 
+            $salinitas_ppt = $salinitas_mentah * $faktor_kalibrasi;
+            
             // Fuzzifikasi
             $muS = $this->fuzzifikasiSuhu($suhu);
             $muP = $this->fuzzifikasiph($ph);
@@ -40,10 +52,10 @@ class FuzzyController extends Controller
 
             // SIMPAN KE DATABASE
             $data = SensorData::create([
-                'suhu' => $suhu,
+                'suhu' => round($suhu, 2),
                 'ph' => $ph,
                 'v_ph' => $v_ph, 
-                'salinitas' => $salinitas_ppt,
+                'salinitas' => round($salinitas_ppt, 2),
                 'nilai_z' => $hasil_z,
                 'kondisi_air' => $kondisi
             ]);
@@ -53,6 +65,8 @@ class FuzzyController extends Controller
 
             return response()->json([
                 'status' => 'success', 
+                'suhu_calibrated' => round($suhu, 2),
+                'salinitas_calibrated' => round($salinitas_ppt, 2),
                 'hasil_z' => $hasil_z, 
                 'kondisi' => $kondisi
             ], 200);
