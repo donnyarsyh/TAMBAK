@@ -6,73 +6,63 @@ use Illuminate\Http\Request;
 use App\Models\SensorData; 
 use Exception;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Log; // untuk memantau error
+use Illuminate\Support\Facades\Log;
 
 class FuzzyController extends Controller
 {
     public function hitungFuzzy(Request $request)
     {
-        // Log setiap data yang masuk dari ESP32 untuk memastikan koneksi aman
-        Log::info('Data masuk dari ESP32:', $request->all());
+        // Log setiap data yang masuk dari ESP32 untuk memantau aktivitas
+        Log::info('Data masuk dari ESP32 (Raw):', $request->all());
 
         try {
-            // Ambil data dari ESP32
-            $suhu_mentah = (float) $request->input('suhu');
-            $ph = (float) $request->input('ph');
+            // Ambil data asli dari ESP32
+            $suhu_raw = (float) $request->input('suhu');
+            $ph_raw = (float) $request->input('ph');
             $v_ph = (float) $request->input('v_ph');
-            $salinitas_mentah = (float) $request->input('salinitas');
+            $salinitas_raw = (float) $request->input('salinitas');
 
-            
-            // ===== LOGIKA KONVERSI/KALIBRASI SOFTWARE =====
-            // Konversi Suhu (Offset Correction)
-            // Manual 29.8, IoT 28.5 -> Tambahkan 1.3
-            $suhu = $suhu_mentah + 1.3;
+            //kalibrasi software (regresi linear)
+            $suhu = $suhu_raw + 1.06;
+            $ph = $ph_raw + 0.16;
+            $salinitas = $salinitas_raw * 1.0252;
 
-            // Berdasarkan data: Manual 500, IoT 490 (Selisih 10)
-            // Formula: Nilai_Baru = Nilai_Lama * (Target / Aktual)
-            // 500 / 490 = 1.0204
-            $faktor_kalibrasi = 1.0204; 
-            $salinitas_ppt = $salinitas_mentah * $faktor_kalibrasi;
-            
-            // Fuzzifikasi
+            // PROSES FUZZIFIKASI (Menggunakan data terkalibrasi)
             $muS = $this->fuzzifikasiSuhu($suhu);
             $muP = $this->fuzzifikasiph($ph);
-            $muL = $this->fuzzifikasiSalinitas($salinitas_ppt);
+            $muL = $this->fuzzifikasiSalinitas($salinitas);
             
-            // Inferensi Tsukamoto
             $hasil_z = $this->inferensiTsukamoto($muS, $muP, $muL);
 
-            // Klasifikasi Hasil
+            // Klasifikasi
             $kondisi = ($hasil_z >= 70) ? 'Baik' : (($hasil_z >= 40) ? 'Sedang' : 'Buruk');
 
-            // Cek apakah model SensorData bisa dipanggil
             if (!class_exists('App\Models\SensorData')) {
                 throw new Exception('Model SensorData tidak ditemukan!');
             }
 
-            // SIMPAN KE DATABASE
+            // SIMPAN DATA TERKALIBRASI KE DATABASE
             $data = SensorData::create([
                 'suhu' => round($suhu, 2),
-                'ph' => $ph,
+                'ph' => round($ph, 2),
                 'v_ph' => $v_ph, 
-                'salinitas' => round($salinitas_ppt, 2),
+                'salinitas' => round($salinitas, 2),
                 'nilai_z' => $hasil_z,
                 'kondisi_air' => $kondisi
             ]);
 
-            // OTOMATIS HAPUS DATA > 7 HARI
             SensorData::where('created_at', '<', Carbon::now()->subDays(7))->delete();
 
             return response()->json([
                 'status' => 'success', 
-                'suhu_calibrated' => round($suhu, 2),
-                'salinitas_calibrated' => round($salinitas_ppt, 2),
+                'suhu_final' => round($suhu, 2),
+                'ph_final' => round($ph, 2),
+                'salinitas_final' => round($salinitas, 2),
                 'hasil_z' => $hasil_z, 
                 'kondisi' => $kondisi
             ], 200);
 
         } catch (Exception $e) {
-            // Tulis error spesifik ke log agar tahu baris mana yang rusak
             Log::error('Fuzzy Error: ' . $e->getMessage());
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
@@ -84,11 +74,13 @@ class FuzzyController extends Controller
         if ($x >= 27 && $x <= 33) $mu['baik'] = 1;
         else if ($x >= 25 && $x < 27) $mu['baik'] = ($x - 25) / (27 - 25);
         else if ($x > 33 && $x <= 35) $mu['baik'] = (35 - $x) / (35 - 33);
+        
         if (($x >= 22 && $x <= 25) || ($x >= 35 && $x <= 38)) $mu['sedang'] = 1;
         else if ($x >= 20 && $x < 22) $mu['sedang'] = ($x - 20) / (22 - 20);
         else if ($x > 25 && $x <= 27) $mu['sedang'] = (27 - $x) / (27 - 25);
         else if ($x >= 33 && $x < 35) $mu['sedang'] = ($x - 33) / (35 - 33);
         else if ($x > 38 && $x < 40) $mu['sedang'] = (40 - $x) / (40 - 38);
+        
         if ($x <= 20 || $x >= 40) $mu['buruk'] = 1;
         else if ($x > 20 && $x < 22) $mu['buruk'] = (22 - $x) / (22 - 20);
         else if ($x > 38 && $x < 40) $mu['buruk'] = (40 - $x) / (40 - 38);
@@ -100,11 +92,13 @@ class FuzzyController extends Controller
         if ($x >= 7.5 && $x <= 8.0) $mu['baik'] = 1;
         else if ($x >= 7.0 && $x < 7.5) $mu['baik'] = ($x - 7.0) / (7.5 - 7.0);
         else if ($x > 8.0 && $x <= 8.5) $mu['baik'] = (8.5 - $x) / (8.5 - 8.0);
+
         if (($x >= 6.8 && $x <= 7.0) || ($x >= 8.5 && $x <= 8.8)) $mu['sedang'] = 1;
         else if ($x >= 6.5 && $x < 6.8) $mu['sedang'] = ($x - 6.5) / (6.8 - 6.5);
         else if ($x >= 7.0 && $x <= 7.5) $mu['sedang'] = (7.5 - $x) / (7.5 - 7.0); 
         else if ($x >= 8.0 && $x <= 8.5) $mu['sedang'] = ($x - 8.0) / (8.5 - 8.0);
         else if ($x > 8.8 && $x < 9.0) $mu['sedang'] = (9.0 - $x) / (9.0 - 8.8);
+
         if ($x <= 6.5 || $x >= 9.0) $mu['buruk'] = 1;
         else if ($x > 6.5 && $x < 6.8) $mu['buruk'] = (6.8 - $x) / (6.8 - 6.5);
         else if ($x > 8.8 && $x < 9.0) $mu['buruk'] = (9.0 - $x) / (9.0 - 8.8);
@@ -116,11 +110,13 @@ class FuzzyController extends Controller
         if ($x >= 17 && $x <= 28) $mu['baik'] = 1;
         else if ($x >= 15 && $x < 17) $mu['baik'] = ($x - 15) / (17 - 15);
         else if ($x > 28 && $x <= 30) $mu['baik'] = (30 - $x) / (30 - 28);
+
         if (($x >= 10 && $x <= 15) || ($x >= 30 && $x <= 33)) $mu['sedang'] = 1;
         else if ($x >= 8 && $x < 10) $mu['sedang'] = ($x - 8) / (10 - 8);
         else if ($x >= 15 && $x <= 17) $mu['sedang'] = (17 - $x) / (17 - 15);
         else if ($x >= 28 && $x <= 30) $mu['sedang'] = ($x - 28) / (30 - 28);
         else if ($x > 33 && $x <= 35) $mu['sedang'] = (35 - $x) / (35 - 33);
+
         if ($x <= 8 || $x >= 35) $mu['buruk'] = 1;
         else if ($x > 8 && $x < 10) $mu['buruk'] = (10 - $x) / (10 - 8);
         else if ($x > 33 && $x < 35) $mu['buruk'] = (35 - $x) / (35 - 33);
